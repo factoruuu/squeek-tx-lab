@@ -237,6 +237,7 @@ function logTx(html){
   const ul = $("txLog");
   if (ul.dataset.empty !== "no") { ul.innerHTML = ""; ul.dataset.empty = "no"; }
   const li = document.createElement("li"); li.innerHTML = html; ul.prepend(li);
+  return li;
 }
 
 async function ping(){
@@ -252,10 +253,10 @@ async function ping(){
     st.textContent = "Confirm in your wallet…";
     const tx = await sqk.approve(account, 0);
     st.innerHTML = "Sent — waiting for confirmation…";
-    logTx('Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · pending');
+    const pendingLi = logTx('Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · pending');
     const rc = await tx.wait();
     st.innerHTML = '<span class="ok">Confirmed in block ' + fmt(rc.blockNumber) + '.</span>';
-    logTx('Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · confirmed, block ' + fmt(rc.blockNumber));
+    pendingLi.innerHTML = 'Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · confirmed, block ' + fmt(rc.blockNumber);
   } catch (e) {
     st.innerHTML = '<span class="err">' + (e.shortMessage || e.message) + '</span>';
   } finally { btn.disabled = false; }
