@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squeek Tx Lab — a Sepolia transaction tool for Squeekchain</title>
+<meta name="description" content="Sepolia-only tool for Squeekchain: live SqueekCore state, wallet balances and a safe first transaction (Ping SQK). Testnet only — SQK and Squeeks have no monetary value.">
+<style>
+  :root{
+    --ink:#1d2733; --mut:#5b6b7c; --paper:#fbfaf7; --card:#ffffff; --line:#e3ded2;
+    --acc:#e07b39; --acc2:#2f7d4f; --warn:#b3261e; --chip:#f3efe4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-rounded,"Avenir Next","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink)}
+  .wrap{max-width:880px;margin:0 auto;padding:20px 16px 48px}
+  header{display:flex;gap:16px;align-items:center;margin:8px 0 4px}
+  .logo{flex:0 0 auto;font-size:44px;line-height:1;background:var(--chip);border:1px solid var(--line);
+    border-radius:16px;padding:10px 12px}
+  h1{font-size:28px;margin:0;letter-spacing:.2px}
+  .sub{color:var(--mut);margin:2px 0 0;font-size:14px}
+  .badge{display:inline-block;background:var(--warn);color:#fff;font-weight:700;font-size:11px;
+    padding:2px 8px;border-radius:99px;letter-spacing:.6px;vertical-align:middle;margin-left:8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:16px;
+    box-shadow:0 1px 2px rgba(29,39,51,.04)}
+  .card h2{margin:0 0 4px;font-size:17px}
+  .card p{margin:6px 0;color:var(--mut);font-size:14px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px}
+  .stat{background:var(--chip);border-radius:10px;padding:10px 12px}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut)}
+  .stat .v{font-size:19px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+  .stat .n{font-size:12px;color:var(--mut)}
+  button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:700;
+    font-size:14px;cursor:pointer}
+  button.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{opacity:.55;cursor:wait}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;word-break:break-all}
+  a{color:var(--acc);text-decoration:none} a:hover{text-decoration:underline}
+  .ok{color:var(--acc2);font-weight:700}.err{color:var(--warn);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--mut);font-weight:600}
+  .log{font-size:13px}
+  .log li{margin:6px 0}
+  footer{color:var(--mut);font-size:12.5px;margin-top:22px;line-height:1.6}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo" aria-hidden="true">🐹</div>
+    <div>
+      <h1>Squeek Tx Lab <span class="badge">SEPOLIA TESTNET</span></h1>
+      <p class="sub">A small transaction tool for <strong>Squeekchain</strong>, the hamster-powered proof-of-work toychain.
+      Check the live chain state, see your wallet, and send a safe first transaction.</p>
+      <p class="sub">Built by <a href="https://squeekchain.com/genesis/n32chzt8" target="_blank" rel="noopener">@riyyui</a> (Genesis member n32chzt8) · Testnet only — $SQK and Squeeks have no monetary value.</p>
+    </div>
+  </header>
+
+  <section class="card" id="chainCard">
+    <h2>🐹 Live chain state</h2>
+    <p>Read directly from the deployed Squeekchain contracts on Sepolia (release <span class="mono">core-sepolia-20261103</span>), at the Ethereum block shown below. No wallet needed.</p>
+    <div class="grid">
+      <div class="stat"><div class="k">Squeek block height</div><div class="v" id="stHeight">…</div><div class="n" id="stProgress"></div></div>
+      <div class="stat"><div class="k">Settled through round</div><div class="v" id="stRound">…</div><div class="n">600-second rounds</div></div>
+      <div class="stat"><div class="k">Wheel work settled</div><div class="v" id="stWork">…</div><div class="n">accepted magnet passes</div></div>
+      <div class="stat"><div class="k">Difficulty</div><div class="v" id="stDiff">…</div><div class="n">work per 1,000 blocks</div></div>
+      <div class="stat"><div class="k">$SQK issued by Mining</div><div class="v" id="stMinted">…</div><div class="n" id="stMiningState"></div></div>
+      <div class="stat"><div class="k">Squeeks minted</div><div class="v" id="stNft">…</div><div class="n">of 9,999</div></div>
+    </div>
+    <div class="row">
+      <button class="sec" id="btnRefresh">↻ Refresh</button>
+      <span class="mono" id="readMeta"></span>
+    </div>
+    <p class="err hidden" id="readErr"></p>
+  </section>
+
+  <section class="card" id="walletCard">
+    <h2>👛 Your wallet</h2>
+    <p>Connect a browser wallet. This page only works on <strong>Sepolia (chain ID 11155111)</strong> and will ask to switch networks if needed. It never asks for a private key or seed phrase.</p>
+    <div class="row">
+      <button id="btnConnect">Connect wallet</button>
+      <span class="mono" id="wAddr"></span>
+    </div>
+    <div class="grid hidden" id="wGrid">
+      <div class="stat"><div class="k">Sepolia ETH</div><div class="v" id="wEth">…</div></div>
+      <div class="stat"><div class="k">$SQK balance</div><div class="v" id="wSqk">…</div></div>
+      <div class="stat"><div class="k">Squeeks held</div><div class="v" id="wNft">…</div></div>
+    </div>
+    <p class="err hidden" id="wErr"></p>
+  </section>
+
+  <section class="card" id="pingCard">
+    <h2>📡 Ping SQK — a safe first transaction</h2>
+    <p>Sends <span class="mono">approve(your own address, 0)</span> to the $SQK contract from your wallet.
+    It <strong>moves no tokens</strong> and grants <strong>no spendable allowance</strong> (the amount is zero and the spender is yourself) —
+    it simply records a real transaction from your address to a verified Squeekchain contract, the same first step Genesis members use for the Tester badge.
+    You only pay the small Sepolia gas fee.</p>
+    <div class="row">
+      <button id="btnPing" disabled>Connect wallet first</button>
+      <span id="pingState"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>🧾 Transaction log</h2>
+    <p>Transactions sent from this page in this session.</p>
+    <ul class="log" id="txLog"><li class="mono" style="color:var(--mut)">No transactions yet.</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>📜 Contracts used (official deployment)</h2>
+    <table>
+      <tr><th>Contract</th><th>Address</th></tr>
+      <tr><td>SqueekCore</td><td class="mono"><a target="_blank" rel="noopener" href="https://eth-sepolia.blockscout.com/address/0xFD6C166D4B8E2962E65746a13e5a0797CD4dE0c4">0xFD6C166D4B8E2962E65746a13e5a0797CD4dE0c4</a></td></tr>
+      <tr><td>SqueekToken ($SQK)</td><td class="mono"><a target="_blank" rel="noopener" href="https://eth-sepolia.blockscout.com/address/0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e">0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e</a></td></tr>
+      <tr><td>SqueekNFT (Squeeks)</td><td class="mono"><a target="_blank" rel="noopener" href="https://eth-sepolia.blockscout.com/address/0xC4C7982657f00509548F3a3a41db7FA439a6856B">0xC4C7982657f00509548F3a3a41db7FA439a6856B</a></td></tr>
+      <tr><td>SqueekMining</td><td class="mono"><a target="_blank" rel="noopener" href="https://eth-sepolia.blockscout.com/address/0x2dCcB11fcC2dEfdd188555e45aCb52231e82e218">0x2dCcB11fcC2dEfdd188555e45aCb52231e82e218</a></td></tr>
+      <tr><td>SqueekStaking</td><td class="mono"><a target="_blank" rel="noopener" href="https://eth-sepolia.blockscout.com/address/0x50fd1780526C3186A0c037c7622203bC4fb611ca">0x50fd1780526C3186A0c037c7622203bC4fb611ca</a></td></tr>
+    </table>
+    <p>Addresses taken from the official deployment record at docs.squeekchain.com/developers — nowhere else.</p>
+  </section>
+
+  <footer>
+    Safety: Sepolia testnet only · no mainnet transactions · this page never asks for a private key or seed phrase and contains no analytics or trackers.
+    The full source of this page is its own source — view-source to read it. Not affiliated with the Squeekchain team; built by a Genesis member for the community.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+"use strict";
+const CHAIN_ID = 11155111;
+const RPCS = ["https://ethereum-sepolia-rpc.publicnode.com", "https://sepolia.drpc.org", "https://rpc.sepolia.org"];
+const CORE   = "0xFD6C166D4B8E2962E65746a13e5a0797CD4dE0c4";
+const SQK    = "0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e";
+const NFT    = "0xC4C7982657f00509548F3a3a41db7FA439a6856B";
+const MINING = "0x2dCcB11fcC2dEfdd188555e45aCb52231e82e218";
+const EXPLORER = "https://eth-sepolia.blockscout.com";
+
+const ABI_CORE = ["function state() view returns (tuple(uint64 settledThroughRound, uint64 cumulativeWork, uint96 cumulativeBlockUnits, uint64 blockHeight, uint96 blockProgress, uint32 workPerThousandBlocks, uint256 authorizationNonce, bool paused) result)"];
+const ABI_MINING = [
+  "function checkpointStatus() view returns (bool corePaused, uint64 nextRound, bool roundSettled)",
+  "function state() view returns (tuple(uint256 minted, uint64 processedThroughRound, uint64 startRound, uint64 startHeight, uint64 fundedBlocks, address guardian, bool bootstrapped, bool startCaptured, bool paused, bool active) result)"
+];
+const ABI_ERC20 = ["function balanceOf(address account) view returns (uint256)", "function approve(address spender, uint256 value) returns (bool)"];
+const ABI_NFT = ["function balanceOf(address owner) view returns (uint256)", "function totalSupply() view returns (uint256)"];
+
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toLocaleString("en-US");
+const fmtSqk = v => {
+  const s = ethers.formatUnits(v, 18);
+  const [a, b] = s.split(".");
+  return Number(a).toLocaleString("en-US") + (b && !/^0+$/.test(b) ? "." + b.replace(/0+$/, "").slice(0, 4) : "");
+};
+
+let rpc = null, rpcIdx = 0;
+function makeRpc(){ return new ethers.JsonRpcProvider(RPCS[rpcIdx % RPCS.length], CHAIN_ID, { staticNetwork: true }); }
+rpc = makeRpc();
+
+async function readChain(){
+  $("readErr").classList.add("hidden");
+  try {
+    const core = new ethers.Contract(CORE, ABI_CORE, rpc);
+    const mining = new ethers.Contract(MINING, ABI_MINING, rpc);
+    const nft = new ethers.Contract(NFT, ABI_NFT, rpc);
+    const [st, mst, ck, supply, blk] = await Promise.all([
+      core.state(), mining.state(), mining.checkpointStatus(), nft.totalSupply(), rpc.getBlockNumber()
+    ]);
+    $("stHeight").textContent = fmt(st.blockHeight);
+    const pct = Number(st.blockProgress) / 1e9 * 100;
+    $("stProgress").textContent = "next block " + pct.toFixed(1) + "% complete" + (st.paused ? " · CORE PAUSED" : "");
+    $("stRound").textContent = fmt(st.settledThroughRound);
+    $("stWork").textContent = fmt(st.cumulativeWork);
+    $("stDiff").textContent = fmt(st.workPerThousandBlocks);
+    $("stMinted").textContent = fmtSqk(mst.minted) + " SQK";
+    $("stMiningState").textContent = "mining " + (mst.active ? "active" : "not started") +
+      " · next checkpoint round " + fmt(ck.nextRound) + (ck.roundSettled ? " (settled)" : " (open)");
+    $("stNft").textContent = fmt(supply);
+    $("readMeta").textContent = "read at Ethereum block " + fmt(blk);
+  } catch (e) {
+    if (rpcIdx < RPCS.length - 1) { rpcIdx++; rpc = makeRpc(); return readChain(); }
+    const el = $("readErr"); el.textContent = "Could not read the contracts: " + (e.shortMessage || e.message); el.classList.remove("hidden");
+  }
+}
+
+let signer = null, account = null;
+async function connect(){
+  const err = $("wErr"); err.classList.add("hidden");
+  if (!window.ethereum) { err.textContent = "No browser wallet found. Install MetaMask or another EIP-1193 wallet, then reload."; err.classList.remove("hidden"); return; }
+  try {
+    const bp = new ethers.BrowserProvider(window.ethereum);
+    const net = await bp.getNetwork();
+    if (Number(net.chainId) !== CHAIN_ID) {
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] });
+      } catch (sw) {
+        if (sw.code === 4902) {
+          await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+            chainId: "0xaa36a7", chainName: "Sepolia", nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+            rpcUrls: [RPCS[0]], blockExplorerUrls: [EXPLORER]
+          }]});
+        } else throw sw;
+      }
+    }
+    signer = await bp.getSigner();
+    account = await signer.getAddress();
+    $("wAddr").textContent = account;
+    $("wGrid").classList.remove("hidden");
+    const sqk = new ethers.Contract(SQK, ABI_ERC20, rpc);
+    const nft = new ethers.Contract(NFT, ABI_NFT, rpc);
+    const [eth, s, n] = await Promise.all([rpc.getBalance(account), sqk.balanceOf(account), nft.balanceOf(account)]);
+    $("wEth").textContent = Number(ethers.formatEther(eth)).toFixed(5) + " ETH";
+    $("wSqk").textContent = fmtSqk(s) + " SQK";
+    $("wNft").textContent = fmt(n);
+    const btn = $("btnPing");
+    btn.disabled = false; btn.textContent = "Send Ping SQK";
+  } catch (e) {
+    err.textContent = "Wallet connection failed: " + (e.shortMessage || e.message); err.classList.remove("hidden");
+  }
+}
+
+function logTx(html){
+  const ul = $("txLog");
+  if (ul.dataset.empty !== "no") { ul.innerHTML = ""; ul.dataset.empty = "no"; }
+  const li = document.createElement("li"); li.innerHTML = html; ul.prepend(li);
+}
+
+async function ping(){
+  if (!signer || !account) return;
+  const btn = $("btnPing"), st = $("pingState");
+  btn.disabled = true; st.textContent = "Preparing…";
+  try {
+    const sqk = new ethers.Contract(SQK, ABI_ERC20, signer);
+    // Dry-run first: never ask for a signature on a call that would revert.
+    await sqk.approve.staticCall(account, 0);
+    st.textContent = "Confirm in your wallet…";
+    const tx = await sqk.approve(account, 0);
+    st.innerHTML = "Sent — waiting for confirmation…";
+    logTx('Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · pending');
+    const rc = await tx.wait();
+    st.innerHTML = '<span class="ok">Confirmed in block ' + fmt(rc.blockNumber) + '.</span>';
+    logTx('Ping SQK · <a target="_blank" rel="noopener" href="' + EXPLORER + '/tx/' + tx.hash + '">' + tx.hash + '</a> · confirmed, block ' + fmt(rc.blockNumber));
+  } catch (e) {
+    st.innerHTML = '<span class="err">' + (e.shortMessage || e.message) + '</span>';
+  } finally { btn.disabled = false; }
+}
+
+$("btnRefresh").onclick = readChain;
+$("btnConnect").onclick = connect;
+$("btnPing").onclick = ping;
+readChain();
+</script>
+</body>
+</html>
