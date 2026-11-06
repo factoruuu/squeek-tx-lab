@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Squeek Tx Lab — a Sepolia transaction tool for Squeekchain</title>
+<meta name="squeekchain-project" content="f0086d9d-a399-4c35-8055-9786d69ad0e3">
 <meta name="description" content="Sepolia-only tool for Squeekchain: live SqueekCore state, wallet balances and a safe first transaction (Ping SQK). Testnet only — SQK and Squeeks have no monetary value.">
 <style>
   :root{
@@ -186,25 +187,35 @@ async function readChain(){
   }
 }
 
+
+async function ensureSepolia(){
+  const cid = await window.ethereum.request({ method: "eth_chainId" });
+  if (cid === "0xaa36a7") return;
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] });
+  } catch (sw) {
+    if (sw.code === 4902) {
+      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+        chainId: "0xaa36a7", chainName: "Sepolia", nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+        rpcUrls: [RPCS[0]], blockExplorerUrls: [EXPLORER]
+      }]});
+    } else throw sw;
+  }
+  for (let i = 0; i < 20; i++) {
+    const now = await window.ethereum.request({ method: "eth_chainId" });
+    if (now === "0xaa36a7") return;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error("Wallet did not switch to Sepolia. Switch the network to Sepolia in your wallet, then try again.");
+}
+
 let signer = null, account = null;
 async function connect(){
   const err = $("wErr"); err.classList.add("hidden");
   if (!window.ethereum) { err.textContent = "No browser wallet found. Install MetaMask or another EIP-1193 wallet, then reload."; err.classList.remove("hidden"); return; }
   try {
+    await ensureSepolia();
     const bp = new ethers.BrowserProvider(window.ethereum);
-    const net = await bp.getNetwork();
-    if (Number(net.chainId) !== CHAIN_ID) {
-      try {
-        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] });
-      } catch (sw) {
-        if (sw.code === 4902) {
-          await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
-            chainId: "0xaa36a7", chainName: "Sepolia", nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
-            rpcUrls: [RPCS[0]], blockExplorerUrls: [EXPLORER]
-          }]});
-        } else throw sw;
-      }
-    }
     signer = await bp.getSigner();
     account = await signer.getAddress();
     $("wAddr").textContent = account;
@@ -233,7 +244,9 @@ async function ping(){
   const btn = $("btnPing"), st = $("pingState");
   btn.disabled = true; st.textContent = "Preparing…";
   try {
-    const sqk = new ethers.Contract(SQK, ABI_ERC20, signer);
+    await ensureSepolia();
+    const freshSigner = await new ethers.BrowserProvider(window.ethereum).getSigner();
+    const sqk = new ethers.Contract(SQK, ABI_ERC20, freshSigner);
     // Dry-run first: never ask for a signature on a call that would revert.
     await sqk.approve.staticCall(account, 0);
     st.textContent = "Confirm in your wallet…";
@@ -248,6 +261,9 @@ async function ping(){
   } finally { btn.disabled = false; }
 }
 
+if (window.ethereum && window.ethereum.on) {
+  window.ethereum.on("chainChanged", () => location.reload());
+}
 $("btnRefresh").onclick = readChain;
 $("btnConnect").onclick = connect;
 $("btnPing").onclick = ping;
