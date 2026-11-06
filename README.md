@@ -1,5 +1,7 @@
 # Squeek Tx Lab
 
+squeekchain-project: f0086d9d-a399-4c35-8055-9786d69ad0e3
+
 A Sepolia-only transaction tool for **Squeekchain**, the hamster-powered proof-of-work toychain on Ethereum.
 
 Built by [@riyyui](https://squeekchain.com/genesis/n32chzt8) (Squeekchain Genesis member `n32chzt8`,
